@@ -1,0 +1,36 @@
+chain:
+  name: solana
+  wsRpc: wss://atlas-mainnet.helius-rpc.com/?api-key=f03a4129-4b9c-4a95-a0be-32a99ed9a36c
+  queryRpc:
+   - https://mainnet.helius-rpc.com/?api-key=f03a4129-4b9c-4a95-a0be-32a99ed9a36c
+  slotParallel: 1
+  txDetal: 200
+  rangeRound: 200
+
+database:
+  type: mysql
+  host: localhost
+  port: 3306
+  user: root
+  password: password
+  dbname: ps_sol_main
+  sslmode: disable
+  TimeZone: Asia/Shanghai
+
+redis:
+  host: redis-19400.c1.ap-southeast-1-1.ec2.redns.redis-cloud.com
+  port: 19400
+  password: 48LK8lPJomxd8rG5TbZ7PIGu1cTx9B7A
+  db: 1
+
+log:
+  path: /Users/jclee/Desktop/solprobe
+  name: robot.log
+
+allStart: 1
+
+feeAccounts:
+  SOL: "39sXPZ4rD86nA3YoS6YgF5sdutHotL87U6eQnADFRkRE"
+  WSOL: "So11111111111111111111111111111111111111112:8FZA1r8Qu8GWSqhWLzMfzeBaNwETR35hBxppyXKEpUqE"
+  USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v:AAWubPdVs6pG3mkB3Be6yuNrcJjQLBzG6cMmScwP1UFG"
+  USDT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB:51hW43oQ54NnaxBQLzN4SvGdaSMD7WqbJXJMAmJzSSX6"

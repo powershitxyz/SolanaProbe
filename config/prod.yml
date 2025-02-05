@@ -1,0 +1,31 @@
+chain:
+  name: solana
+  wsRpc: wss://wandering-broken-resonance.solana-mainnet.quiknode.pro/0a9c2e55d66398580e2dcd272fcccb592816933c/
+  queryRpc:
+  - https://wandering-broken-resonance.solana-mainnet.quiknode.pro/0a9c2e55d66398580e2dcd272fcccb592816933c/
+  - https://solana-rpc.publicnode.com
+#  saibr
+  - https://solana-mainnet.core.chainstack.com/c0260deb07f06fce4403c9a4033adafa
+  - https://solana-mainnet.g.alchemy.com/v2/tzeo2l8viOUc6Y-1hVacYLW4Zm9ABcAp
+
+database:
+  type: postgres
+  host: 84.247.154.108
+  port: 5423
+  user: postgres
+  password: dijiaaotemanyyds
+  dbname: dex
+  sslmode: disable
+  TimeZone: Asia/Shanghai
+
+redis:
+  host: 84.247.154.108
+  port: 65218
+  password: lasmx151asxaXA156
+  db: 1
+
+log:
+  path: /Users/jclee/Desktop/hellodex/
+  name: robot.log
+
+allStart: 1
