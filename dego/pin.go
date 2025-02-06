@@ -59,7 +59,7 @@ func handleSlotUpdatesNotification(notification interface{}) (Notification, erro
 }
 
 func handleSlotSubscribeNotification(notification interface{}) (Notification, error) {
-	var slotNotification SlotUpdateNotification
+	var slotNotification SlotNotification
 	data, err := json.Marshal(notification)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal notification: %v", err)

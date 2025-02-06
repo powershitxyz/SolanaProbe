@@ -1,6 +1,6 @@
 chain:
   name: solana
-  wsRpc: wss://atlas-mainnet.helius-rpc.com/?api-key=f03a4129-4b9c-4a95-a0be-32a99ed9a36c
+  wsRpc: wss://mainnet.helius-rpc.com/?api-key=f03a4129-4b9c-4a95-a0be-32a99ed9a36c
   queryRpc:
    - https://mainnet.helius-rpc.com/?api-key=f03a4129-4b9c-4a95-a0be-32a99ed9a36c
   slotParallel: 1

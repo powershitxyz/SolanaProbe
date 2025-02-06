@@ -3,155 +3,153 @@ package rpc
 import (
 	"encoding/json"
 	"net/url"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/powershitxyz/SolanaProbe/config"
 	"github.com/powershitxyz/SolanaProbe/dego"
 	"github.com/powershitxyz/SolanaProbe/sys"
 )
 
 var slotQueue = sys.NewSlotQueue()
-var unqiueSlotMap = make(map[uint64]bool)
-var slotMapLock = sync.Mutex{}
-var slotEOF = make([]uint64, 0)
-var slotEOFLock = sync.Mutex{}
-var slotEOFFlag = false
 
 var logger = sys.Logger
-var conf = config.GetConfig()
+var lastCheck int64
+var subscribeDone = make(chan struct{})
 
-func ReadSloqQueue() *sys.SlotQueue {
+func ReadSlotQueue() *sys.SlotQueue {
 	return slotQueue
 }
 
-var SubscribeDone = make(chan bool)
-
 func InitEssential() {
-	if wsRpc := conf.Chain.WsRpc; len(wsRpc) == 0 {
+	if wsRpc := conf.Chain.WsRpc; wsRpc == "" {
 		logger.Fatalln("error config websocket rpc")
 	}
 
-	//触发重连逻辑 测试用
-	//go time.AfterFunc(1*time.Minute, func() {
-	//	SubscribeDone <- true
-	//})
-	go connectAndSubscribe(SubscribeDone)
+	go connectAndSubscribe()
 
-	for range SubscribeDone {
+	for range subscribeDone {
 		logger.Println("Reconnecting...")
 		time.Sleep(3 * time.Second)
-		go connectAndSubscribe(SubscribeDone)
-
+		go connectAndSubscribe()
 	}
 }
 
-func connectAndSubscribe(done chan bool) {
+func connectAndSubscribe() {
 	u, err := url.Parse(conf.Chain.WsRpc)
-	var lastCheck = time.Now().Unix()
+	atomic.StoreInt64(&lastCheck, time.Now().Unix()) // initialized connection time
 	if err != nil {
 		logger.Fatal("Error parsing URL:", err)
 	}
-	logger.Printf("connecting to %s", u.String())
+	logger.Printf("Connecting to %s", u.String())
 
 	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		logger.Printf("Failed to connect to WebSocket: %v", err)
-		done <- true
+		triggerReconnect()
 		return
 	}
-	defer func() {
-		err2 := conn.Close()
-		if err2 != nil {
-			logger.Printf("Failed to close WebSocket connection: %v", err2)
-		}
-	}()
+	defer conn.Close()
 
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+	conn.SetPongHandler(func(appData string) error {
+		atomic.StoreInt64(&lastCheck, time.Now().Unix())
+		return nil
+	})
+
+	pingTicker := time.NewTicker(5 * time.Second)
+	defer pingTicker.Stop()
+
+	go sendPing(conn, pingTicker)
 
 	notificationChannel := make(chan dego.Notification, 100)
+	go processNotifications(notificationChannel)
 
-	go func() {
-		batch := make([]dego.Notification, 0, 3)
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
+	timeoutTicker := time.NewTicker(30 * time.Second)
+	defer timeoutTicker.Stop()
 
-		for {
-			select {
-			case notification := <-notificationChannel:
-				batch = append(batch, notification)
-				if len(batch) >= 10 {
-					// processBatch(batch)
-					batch = batch[:0]
-				}
-			case <-ticker.C:
-				if len(batch) > 0 {
-					// processBatch(batch)
-					batch = batch[:0]
-				}
-			}
+	go readMessages(conn, notificationChannel)
+
+	WatchSlotSubscribe(conn)
+
+	for range timeoutTicker.C {
+		if time.Now().Unix()-atomic.LoadInt64(&lastCheck) > 30 {
+			logger.Info("Timeout triggered, reconnecting...")
+			triggerReconnect()
+			return
 		}
-	}()
+	}
+}
 
-	var once sync.Once
+func sendPing(conn *websocket.Conn, ticker *time.Ticker) {
+	for range ticker.C {
+		if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			logger.Println("Ping failed:", err)
+			triggerReconnect()
+			return
+		}
+	}
+}
 
-	ticker1 := time.NewTicker(6 * time.Second)
-	defer ticker1.Stop()
-	// Listen for messages
-	go func() {
-		for {
-			_, message, err := conn.ReadMessage()
-			if err != nil {
-				logger.Println("read:", err)
-				once.Do(func() { done <- true })
-				return
-			}
+func readMessages(conn *websocket.Conn, notificationChannel chan dego.Notification) {
+	for {
+		_, message, err := conn.ReadMessage()
+		if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+			logger.Println("WebSocket closed normally:", err)
+			return
+		} else if err != nil {
+			logger.Println("WebSocket read error:", err)
+			triggerReconnect()
+			return
+		}
 
-			var response map[string]interface{}
-			err = json.Unmarshal(message, &response)
-			if err != nil {
-				atomic.StoreInt64(&lastCheck, time.Now().Unix())
-				logger.Println("unmarshal:", err)
-				continue
-			}
-
-			method, ok := response["method"].(string)
-			if !ok {
-				atomic.StoreInt64(&lastCheck, time.Now().Unix())
-				slotEOFFlag = true
-				logger.Printf("method not found in response:[%s],ReadMsg:%v", method, response)
-				continue
-			}
+		var response map[string]interface{}
+		if err := json.Unmarshal(message, &response); err != nil {
 			atomic.StoreInt64(&lastCheck, time.Now().Unix())
-			obj, err := dego.RouteNotification(method, response)
-			if err == nil {
-				notificationChannel <- obj
-			}
+			logger.Println("Unmarshal error:", err)
+			continue
 		}
-	}()
+
+		method, ok := response["method"].(string)
+		if !ok {
+			atomic.StoreInt64(&lastCheck, time.Now().Unix())
+			logger.Printf("Method not found in response: [%s], ReadMsg: %v", method, response)
+			continue
+		}
+		atomic.StoreInt64(&lastCheck, time.Now().Unix())
+
+		obj, err := dego.RouteNotification(method, response)
+		if err == nil {
+			notificationChannel <- obj
+		}
+	}
+}
+
+func processNotifications(notificationChannel chan dego.Notification) {
+	batch := make([]dego.Notification, 0, 3)
+	tick := time.NewTicker(1 * time.Second)
+	defer tick.Stop()
 
 	for {
 		select {
-		case <-done:
-			logger.Println("Connection closed, reconnecting...")
-			once.Do(func() { done <- true })
-			return // 退出当前函数以触发重连逻辑
-		case t := <-ticker.C:
-			err := conn.WriteMessage(websocket.PingMessage, []byte(t.String()))
-			if err != nil {
-				logger.Println("write ping:", err)
-				once.Do(func() { done <- true })
-				return // 退出当前函数以触发重连逻辑
+		case notification := <-notificationChannel:
+			batch = append(batch, notification)
+			logger.Println("New data pushed", notification)
+			if len(batch) >= 10 {
+				processBatch(batch)
+				batch = batch[:0]
 			}
-		case t1 := <-ticker1.C:
-			if time.Now().Unix()-atomic.LoadInt64(&lastCheck) > 11 {
-				once.Do(func() { done <- true })
-				logger.Info("定时器触发重连", t1.String())
-				return
+		case <-tick.C:
+			if len(batch) > 0 {
+				processBatch(batch)
+				batch = batch[:0]
 			}
 		}
+	}
+}
+
+func triggerReconnect() {
+	select {
+	case subscribeDone <- struct{}{}:
+	default:
 	}
 }

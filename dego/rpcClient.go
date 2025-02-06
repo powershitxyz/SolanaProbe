@@ -282,26 +282,6 @@ func GetTransactionsBySlot(slot uint64) (decodedTransactions []*RawTransaction, 
 			sys.Logger.Error("GetTransactionsBySlotMightBe229:", r, " unsolved slot:", slot)
 		}
 	}()
-
-	// if conf.Chain.GetTxDelay() > 0 {
-	// 	source := rand.NewSource(time.Now().UnixNano())
-	// 	random := rand.New(source)
-	// 	randomDuration := time.Duration(random.Intn(conf.Chain.GetTxDelay())+20000) * time.Millisecond
-	// 	log.Println("延时了：", randomDuration)
-	// 	time.Sleep(randomDuration)
-	// }
-	// includeRewards := false
-	// blockWithNoTxs, err = Client().GetBlockWithOpts(
-	// 	context.TODO(),
-	// 	slot,
-	// 	&rpc.GetBlockOpts{
-	// 		Encoding: solana.EncodingBase64,
-	// 		// Commitment:                     rpc.CommitmentFinalized,
-	// 		TransactionDetails:             rpc.TransactionDetailsFull,
-	// 		MaxSupportedTransactionVersion: &maxVersion,
-	// 		Rewards:                        &includeRewards,
-	// 	},
-	// )
 	blockWithNoTxs, err = getBlockWithRetries(slot, 5, 5*time.Second)
 	if err != nil {
 		sys.Logger.Errorln("GetTransactionsBySlot-Error", slot, err, " especially conds.")
