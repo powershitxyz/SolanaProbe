@@ -1,7 +1,6 @@
 package rpc
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -9,7 +8,6 @@ import (
 
 	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/powershitxyz/SolanaProbe/dego"
-	"github.com/powershitxyz/SolanaProbe/model"
 	"github.com/powershitxyz/SolanaProbe/parser"
 	"github.com/powershitxyz/SolanaProbe/pub"
 	"github.com/powershitxyz/SolanaProbe/sys"
@@ -39,7 +37,7 @@ func processBatch(batch []dego.Notification) {
 			} else {
 				logger.Errorf("transfer slot notification error： %v", notification)
 			}
-		case "slotNotification":
+		case "slotNotification": // using
 			if pon, ok := notification.(dego.SlotNotification); ok {
 				slotQueue.Enqueue(pon.Params.Result.Slot)
 			} else {
@@ -53,71 +51,9 @@ func processBatch(batch []dego.Notification) {
 	logger.Println("programNotifications ... ", programNotifications)
 }
 
-func ProcessSlot(slot *dego.SlotUpdateNotification) {
-	transactions, blockWithNoTxs, err := dego.GetTransactionsBySlot(slot.Params.Result.Slot)
-	if err != nil {
-		logger.Errorf("get slot %d with transactions error： %v", slot.Params.Result.Slot, err)
-		return
-	}
-	parsedData, err := ParsingTransactions(transactions, blockWithNoTxs)
-	if err != nil {
-		logger.Errorf("parse slot %d transactions error： %v", slot.Params.Result.Slot, err)
-	}
-
-	var wg sync.WaitGroup
-	var transferRecordStat, tokenHoldStat, tokenFlowStat, pairStat, updatePairStat int
-	if len(parsedData.Transfers) != 0 {
-		wg.Add(1)
-		go func(ds []model.TransferRecord) {
-			defer wg.Done()
-			// store.BatchSaveTransferRecord(ds, 500)
-			transferRecordStat = len(ds)
-		}(parsedData.Transfers)
-	}
-	//holds
-	if len(parsedData.TokenHold) != 0 {
-		wg.Add(1)
-		go func(ds []model.TokenHold) {
-			defer wg.Done()
-			//store.BatchSaveOrUpdateHolds(ds, 5000)
-			tokenHoldStat = len(ds)
-		}(parsedData.TokenHold)
-	}
-	//swap
-	if len(parsedData.TokenFlow) != 0 {
-		wg.Add(1)
-		go func(ds []model.TokenFlow) {
-			defer wg.Done()
-			// store.BatchSaveTokenFlow(ds, 1000, true)
-			tokenFlowStat = len(ds)
-		}(parsedData.TokenFlow)
-	}
-	if len(parsedData.NewPairs) != 0 {
-		wg.Add(1)
-		go func(ds []pub.Pair) {
-			defer wg.Done()
-			// store.BatchSavePools(blockWithNoTxs.BlockTime.Time(), ds, 500)
-			pairStat = len(ds)
-		}(parsedData.NewPairs)
-	}
-	//更新池子
-	if len(parsedData.UpdatedPairs) != 0 {
-		wg.Add(1)
-		go func(ds []pub.Pair) {
-			defer wg.Done()
-			// store.BatchUpdatePools(ds, 500)
-			updatePairStat = len(ds)
-		}(parsedData.UpdatedPairs)
-	}
-	wg.Wait()
-	logger.Printf("----------------Slot: %d, transferRecord: %d, tokenHold: %d, tokenFlow: %d, pair: %d, updatePair: %d",
-		slot.Params.Result.Slot, transferRecordStat, tokenHoldStat, tokenFlowStat, pairStat, updatePairStat)
-	//
-}
-
 func ParsingTransactions(decodedTransactions []*dego.RawTransaction, blockWithNoTxs *rpc.GetBlockResult) (res pub.ParsedData, err error) {
 	if len(decodedTransactions) == 0 {
-		return res, errors.New(fmt.Sprintf("[%d]empty tx list", &blockWithNoTxs.BlockHeight))
+		return res, fmt.Errorf("[%d]empty tx list", &blockWithNoTxs.BlockHeight)
 	}
 	rangeRound := conf.Chain.RangeRound
 	batchSlice := pub.BatchSlice(decodedTransactions, rangeRound)

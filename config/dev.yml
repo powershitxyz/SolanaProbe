@@ -18,9 +18,9 @@ database:
   TimeZone: Asia/Shanghai
 
 redis:
-  host: redis-19400.c1.ap-southeast-1-1.ec2.redns.redis-cloud.com
-  port: 19400
-  password: 48LK8lPJomxd8rG5TbZ7PIGu1cTx9B7A
+  host: localhost
+  port: 6369
+  password: 123456
   db: 1
 
 log:

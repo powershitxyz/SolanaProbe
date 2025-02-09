@@ -233,12 +233,11 @@ type KChart struct {
 	VolumeUsd decimal.Decimal `json:"volumeUsd"` // 交易额美元
 }
 
-func GetPKFromBase58(str string) *solana.PublicKey {
-	base58 := solana.MustPublicKeyFromBase58(str)
-	return &base58
+func GetPKFromBase58(str string) (solana.PublicKey, error) {
+	return solana.PublicKeyFromBase58(str)
 }
 
-// reverseBytes 翻转字节数组
+// reverse array
 func ReverseBytes(data []byte) []byte {
 	for i, j := 0, len(data)-1; i < j; i, j = i+1, j-1 {
 		data[i], data[j] = data[j], data[i]
