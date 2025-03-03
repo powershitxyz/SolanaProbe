@@ -24,7 +24,7 @@ redis:
   db: 1
 
 log:
-  path: /Users/jclee/Desktop/solprobe
+  path: ./logs/
   name: robot.log
 
 allStart: 1
